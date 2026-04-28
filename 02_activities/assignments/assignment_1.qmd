@@ -13,99 +13,159 @@ Please bring questions that you cannot work out on your own to office hours, wor
 
 You will need to install PLINK and run the analyses. Please follow the OS-specific setup guide in [`SETUP.md`](../../SETUP.md). PLINK is a free, open-source whole genome association analysis toolset, designed to perform a range of basic, large-scale analyses in a computationally efficient manner.
 
+```{r setup, include=FALSE}
+# Set up a consistent path for all chunks of code
+knitr::opts_knit$set(root.dir = normalizePath("../../"))
+getwd()
+```
+
 #### Question 1: Data inspection
 
 Before fitting any models, it is essential to understand the data. Use R or bash code to answer the following questions about the `gwa.qc.A1.fam`, `gwa.qc.A1.bim`, and `gwa.qc.A1.bed` files, available at the following Google Drive link: <https://drive.google.com/drive/folders/11meVqGCY5yAyI1fh-fAlMEXQt0VmRGuz?usp=drive_link>. Please download all three files from this link and place them in `02_activities/data/`.
 
 (i) Read the .fam file. How many samples does the dataset contain?
 
-```         
-# Your answer here...
-```
+``` {bash}         
+cd "/c/Users/Mahsa Edalatkah/gen_data"
+head ./02_activities/data/gwa.qc.A1.fam
+wc -l <02_activities/data/gwa.qc.A1.fam
 
+```
+# 4000
 (ii) What is the 'variable type' of the response variable (i.e.Continuous or binary)?
 
-```         
-# Your answer here...
+```{bash}
+head ./02_activities/data/gwa.qc.A1.fam
 ```
-
+# continuous 
 (iii) Read the .bim file. How many SNPs does the dataset contain?
 
-```         
-# Your answer here...
+```{bash}         
+cd "/c/Users/Mahsa Edalatkah/gen_data"
+head ./02_activities/data/gwa.qc.A1.bim
+wc -l ./02_activities/data/gwa.qc.A1.bim
+
 ```
+
+# 101083 SNPs
 
 #### Question 2: Allele Frequency Estimation
 
 (i) Load the genotype matrix for SNPs rs1861, rs3813199, rs3128342, and rs11804831 using additive coding. What are the allele frequencies (AFs) for these four SNPs?
 
-```         
-# Your code here...
+```{bash,results='hide',message=FALSE, warning=FALSE}         
+cd "/c/Users/Mahsa Edalatkah/gen_data"
+printf "%s\n" rs1861 rs3813199 rs3128342 rs11804831 > ./02_activities/data/SNP_List_A1
+plink2 --bfile ./02_activities/data/gwa.qc.A1 --extract ./02_activities/data/SNP_List_A1 --export A --freq --out ./02_activities/data/SNP_List_A1_Additive
+head ./02_activities/data/SNP_List_A1_Additive.afreq
 ```
 
 (ii) What are the minor allele frequencies (MAFs) for these four SNPs?
 
-```         
-# Your code here...
-```
+# rs3813199      0.0569126
+# rs11804831     0.154341 
+# rs3128342        0.305121 
+# rs1861         0.0539859
 
 #### Question 3: Hardy–Weinberg Equilibrium (HWE) Test
 
 (i) Conduct the Hardy–Weinberg Equilibrium (HWE) test for all SNPs in the .bim file. Then, load the file containing the HWE p-value results and display the first few rows of the resulting data frame.
 
-```         
-# Your code here...
+```  {bash}
+cd "C:/Users/Mahsa Edalatkah/gen_data"       
+plink2 --bfile ./02_activities/data/gwa.qc.A1 --memory 4000 --hardy --out ./02_activities/data/gwa_qc_A1_HWE
+head ./02_activities/data/gwa_qc_A1_HWE.hardy
+```
+
+```{r}
+library(data.table)
+library(ggplot2)
+library(seqminer)
+library(HardyWeinberg)
+library(dplyr)
+```
+
+```{r}
+HWE_A1 <- fread("C:/Users/Mahsa Edalatkah/gen_data/02_activities/data/gwa_qc_A1_HWE.hardy", header= TRUE)
+head(HWE_A1)
 ```
 
 (ii) What are the HWE p-values for SNPs rs1861, rs3813199, rs3128342, and rs11804831?
 
-```         
-# Your code here...
+``` {r}
+names(HWE_A1)
+HWE_A1[ID %in% c("rs1861", "rs3813199", "rs3128342", "rs11804831"),
+       .(ID, P)]
 ```
 
 #### Question 4: Genetic Association Test
 
 (i) Conduct a linear regression to test the association between SNP rs1861 and the phenotype. What is the p-value?
 
-```         
-# Your code here...
+```{r}
+library(data.table)
+additive_A1 <- fread("C:/Users/Mahsa Edalatkah/gen_data/02_activities/data/SNP_List_A1_Additive.raw", header= TRUE) 
+head(additive_A1)
+additive_A1$PHENOTYPE = additive_A1$PHENOTYPE -1
+grep("rs1861", names(additive_A1), value = TRUE)
+model_additive <- lm (PHENOTYPE~ rs1861_C, data= additive_A1)
+summary(model_additive)
 ```
+
+# p-value: < 2.2e-16
 
 (ii) How would you interpret the beta coefficient from this regression?
 
-```         
-# Your answer here...
-```
+# In this additive model, each additional copy of the C allele at rs1861 is associated with a 0.97-unit increase in the phenotype. This association is statistically significant (p < 2×10⁻¹⁶).
+
 
 (iii) Plot the scatterplot of phenotype versus the genotype of SNP rs1861. Add the regression line to the plot.
 
-```         
-# Your code here...
+``` {r}        
+library(ggplot2)
+
+plot_1 <- ggplot(additive_A1, aes(x = rs1861_C, y = PHENOTYPE)) +
+  geom_jitter(width = 0.1, alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(x = "Number of C alleles (rs1861)",
+       y = "Phenotype",
+       title = "Phenotype vs rs1861 genotype")
+plot_1
 ```
 
 (iv) Convert the genotype coding for rs1861 to recessive coding.
 
-```         
-# Your code here...
+```{r}
+additive_A1$rs1861_rec <- ifelse(additive_A1$rs1861_C == 2, 1, 0)     
+table(additive_A1$rs1861_C, additive_A1$rs1861_rec)
 ```
 
 (v) Conduct a linear regression to test the association between the recessive-coded rs1861 and the phenotype. What is the p-value?
 
-```         
-# Your code here...
+```{r}
+model_rec <- lm(PHENOTYPE ~ rs1861_rec, data = additive_A1)
+summary(model_rec)        
 ```
-
+# p-value: < 2.2e-16
 (vi) Plot the scatterplot of phenotype versus the recessive-coded genotype of rs1861. Add the regression line to the plot.
 
-```         
-# Your code here...
+```{r}      
+library(ggplot2)
+plot_2 <- ggplot(additive_A1, aes(x = factor(rs1861_rec), y = PHENOTYPE)) +
+  geom_jitter(width = 0.1, alpha = 0.3) +
+  geom_smooth(aes(group = 1), method = "lm", se = FALSE, color = "red") +
+  labs(x = "Recessive genotype (0 = non-CC, 1 = CC)",
+       y = "Phenotype",
+       title = "Phenotype vs rs1861 (recessive model)")
+plot_2
 ```
 
 (vii) Which model fits better? Justify your answer.
 
-```         
-# Your answer here...
+```{r}      
+AIC (model_additive, model_rec)
 ```
+# additive is a better fit because it has a smaller AIC value compared to the recessive modeling
 
 ### Criteria
 
